@@ -3,7 +3,14 @@
 import { UcrTodoInput, ucrTodoSchema } from "@/app/validation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getUCR } from "ucr";
+import { getCreatedItems, getRemovedItems, getUpdatedItems } from "ucr";
+import Notes from "@/app/nested";
+import Button from "@/ui/html/button";
+import Label from "@/ui/html/label";
+import Input from "@/ui/html/input";
+import Textarea from "@/ui/html/textarea";
+import Card from "@/ui/html/card";
+import Checkbox from "@/ui/html/checkbox";
 
 type Props = {
   defaultData?: UcrTodoInput;
@@ -22,16 +29,84 @@ export default function Form({ defaultData }: Props) {
     resolver: zodResolver(ucrTodoSchema, undefined, { raw: true }),
   });
 
-  const debugPayload = getUCR({
-    todos: [watch("todo")],
-    tasks: watch("tasks"),
-  });
+  const debugPayload = {
+    update: {
+      todos: getUpdatedItems([watch("todo")]),
+      tasks: watch("tasks")
+        .map(({ notes, ...task }) => {
+          const parsedNotes = getUpdatedItems(notes);
+          if (parsedNotes.length === 0)
+            return { ...getUpdatedItems([task])[0] };
+
+          return {
+            ...getUpdatedItems([task])[0],
+            notes: parsedNotes,
+          };
+        })
+        .filter((task) => Object.keys(task).length > 0),
+    },
+    create: {
+      todos: getCreatedItems([watch("todo")]),
+      tasks: watch("tasks")
+        .map(({ notes, ...task }) => {
+          const parsedNotes = getCreatedItems(notes);
+          if (parsedNotes.length === 0)
+            return { ...getCreatedItems([task])[0] };
+
+          return {
+            ...getCreatedItems([task])[0],
+            notes: parsedNotes,
+          };
+        })
+        .filter((task) => Object.keys(task).length > 0),
+    },
+    remove: {
+      todos: getRemovedItems([watch("todo")]),
+      tasks: watch("tasks").flatMap(({ notes, ...task }) =>
+        getRemovedItems([task])
+      ),
+      notes: watch("tasks").flatMap(({ notes }) => getRemovedItems(notes)),
+    },
+  };
 
   const onSubmit = handleSubmit(({ todo, tasks }) => {
-    const payload = getUCR({
-      todos: [todo],
-      tasks,
-    });
+    const payload = {
+      update: {
+        todos: getUpdatedItems([todo]),
+        tasks: tasks
+          .map(({ notes, ...task }) => {
+            const parsedNotes = getUpdatedItems(notes);
+            if (parsedNotes.length === 0)
+              return { ...getUpdatedItems([task])[0] };
+
+            return {
+              ...getUpdatedItems([task])[0],
+              notes: parsedNotes,
+            };
+          })
+          .filter((task) => Object.keys(task).length > 0),
+      },
+      create: {
+        todos: getCreatedItems([todo]),
+        tasks: tasks
+          .map(({ notes, ...task }) => {
+            const parsedNotes = getCreatedItems(notes);
+            if (parsedNotes.length === 0)
+              return { ...getCreatedItems([task])[0] };
+
+            return {
+              ...getCreatedItems([task])[0],
+              notes: parsedNotes,
+            };
+          })
+          .filter((task) => Object.keys(task).length > 0),
+      },
+      remove: {
+        todos: getRemovedItems([todo]),
+        tasks: tasks.flatMap(({ notes, ...task }) => getRemovedItems([task])),
+        notes: tasks.flatMap(({ notes }) => getRemovedItems(notes)),
+      },
+    };
 
     alert("Check the console");
     console.log(payload);
@@ -40,14 +115,13 @@ export default function Form({ defaultData }: Props) {
   const _tasks = useFieldArray({ control, name: "tasks", keyName: "_id" });
 
   return (
-    <main className="mx-auto max-w-screen-md">
-      <form onSubmit={(e) => void onSubmit(e)} className="grid">
+    <>
+      <form onSubmit={(e) => void onSubmit(e)} className="grid mb-8">
         <div className="mb-4 font-semibold">ToDo</div>
 
         <div className="mb-4 grid gap-1">
-          <label>Name</label>
-          <input
-            className="ring-1"
+          <Label>Name</Label>
+          <Input
             {...register("todo.name.value", {
               onChange: ({ target }) => {
                 const { value } = target as HTMLInputElement;
@@ -63,9 +137,8 @@ export default function Form({ defaultData }: Props) {
         </div>
 
         <div className="mb-4 grid gap-1">
-          <label>Description</label>
-          <textarea
-            className="ring-1"
+          <Label>Description</Label>
+          <Textarea
             {...register("todo.description.value", {
               onChange: ({ target }) => {
                 const { value } = target as HTMLInputElement;
@@ -77,7 +150,7 @@ export default function Form({ defaultData }: Props) {
                 setValue(`todo.description.action`, `UPDATE`);
               },
             })}
-          ></textarea>
+          ></Textarea>
         </div>
 
         <div className="mb-4 font-semibold">Tasks</div>
@@ -86,18 +159,14 @@ export default function Form({ defaultData }: Props) {
             if (field.name.action === "REMOVE") return null;
 
             return (
-              <div key={field._id}>
-                <div className="flex gap-2">
+              <Card key={field._id} className="mb-4">
+                <div className="flex gap-2 mb-4">
                   <div className="grid gap-1">
-                    <label htmlFor={`tasks.${index}.name.value`}>Name</label>
+                    <Label htmlFor={`tasks.${index}.name.value`}>Name</Label>
                     {field.taskId.action === "CREATE" ? (
-                      <input
-                        className="ring-1"
-                        {...register(`tasks.${index}.name.value`)}
-                      />
+                      <Input {...register(`tasks.${index}.name.value`)} />
                     ) : (
-                      <input
-                        className="ring-1"
+                      <Input
                         {...register(`tasks.${index}.name.value`, {
                           onChange: ({ target }) => {
                             const { value } = target as HTMLInputElement;
@@ -116,17 +185,15 @@ export default function Form({ defaultData }: Props) {
                     )}
                   </div>
                   <div className="grid gap-1">
-                    <label htmlFor={`tasks.${index}.completed.value`}>
+                    <Label htmlFor={`tasks.${index}.completed.value`}>
                       Completed
-                    </label>
+                    </Label>
                     {field.taskId.action === "CREATE" ? (
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         {...register(`tasks.${index}.completed.value`)}
                       />
                     ) : (
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         {...register(`tasks.${index}.completed.value`, {
                           onChange: ({ target }) => {
                             const { checked } = target as HTMLInputElement;
@@ -147,7 +214,7 @@ export default function Form({ defaultData }: Props) {
                       />
                     )}
                   </div>
-                  <button
+                  <Button.Subtle
                     type="button"
                     className="mt-auto"
                     onClick={() => {
@@ -165,29 +232,37 @@ export default function Form({ defaultData }: Props) {
                     }}
                   >
                     Delete
-                  </button>
+                  </Button.Subtle>
                 </div>
-              </div>
+                <Notes
+                  parentId={field.taskId.value}
+                  control={control}
+                  parentIndex={index}
+                  setValue={setValue}
+                  register={register}
+                />
+              </Card>
             );
           })}
         </div>
         <div>
-          <button
+          <Button.Subtle
             type="button"
-            className="mb-8 ring-1"
+            className="mb-8"
             onClick={() => {
               _tasks.append({
                 name: { value: "", action: "CREATE" },
                 taskId: { value: "", action: "CREATE" },
                 completed: { value: false, action: "CREATE" },
+                notes: [],
               });
             }}
           >
             Add task
-          </button>
+          </Button.Subtle>
         </div>
 
-        <button className="ring-1">Save changes</button>
+        <Button.Solid>Save changes</Button.Solid>
       </form>
 
       <div className="flex gap-2">
@@ -204,6 +279,6 @@ export default function Form({ defaultData }: Props) {
           <pre>{JSON.stringify(watch(), null, 2)}</pre>
         </div>
       </div>
-    </main>
+    </>
   );
 }

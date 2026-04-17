@@ -25,5 +25,9 @@
     "typescript": "5.2.2",
     "ucr": "^0.0.3",
     "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "class-variance-authority": "^0.7.0",
+    "tailwind-merge": "^1.14.0"
   }
 }
